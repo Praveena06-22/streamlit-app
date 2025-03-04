@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soil Analysis Results - Smart Crop Recommendation System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <nav>
+        <a href="{{ url_for('dashboard') }}" class="brand">Smart Crop Recommendation System</a>
+        <div class="nav-links">
+            <a href="{{ url_for('dashboard') }}" class="nav-btn">Dashboard</a>
+            <a href="{{ url_for('soil_analysis') }}" class="nav-btn">Soil Analysis</a>
+            <a href="{{ url_for('crop_recommendation') }}" class="nav-btn">Crop Recommendation</a>
+            <a href="{{ url_for('logout') }}" class="nav-btn logout">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1>Soil Analysis Results</h1>
+
+        <div class="card">
+            <h2>Analyzed Soil Image</h2>
+            <div class="image-container">
+                <img src="{{ url_for('static', filename='uploads/' + image_filename) }}" alt="Analyzed soil sample" class="analyzed-image">
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Soil Classification Results</h2>
+            <div class="result-summary">
+                <div class="result-item">
+                    <h3>Identified Soil Type</h3>
+                    <p class="soil-type">{{ soil_type }}</p>
+                    <p class="confidence">Confidence: {{ "%.2f"|format(confidence * 100) }}%</p>
+                </div>
+            </div>
+
+            <div class="soil-properties">
+                <h3>Soil Properties</h3>
+                <div class="properties-grid">
+                    {% for property, value in soil_properties.items() %}
+                    <div class="property-item">
+                        <span class="property-name">{{ property|title }}</span>
+                        <span class="property-value">{{ value }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Suitable Crops</h2>
+            <div class="crops-grid">
+                {% for crop in suitable_crops %}
+                <div class="crop-item">
+                    <h3>{{ crop }}</h3>
+                    <div class="crop-icon">🌾</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="actions">
+            <a href="{{ url_for('soil_analysis') }}" class="btn">Analyze Another Sample</a>
+            <a href="{{ url_for('crop_recommendation') }}" class="btn">Get Crop Recommendations</a>
+        </div>
+    </div>
+
+    <style>
+        .image-container {
+            text-align: center;
+            margin: 1rem 0;
+        }
+
+        .analyzed-image {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .result-summary {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .soil-type {
+            font-size: 1.5rem;
+            color: var(--primary-color);
+            margin: 0.5rem 0;
+            font-weight: bold;
+        }
+
+        .confidence {
+            color: var(--dark-color);
+            font-size: 1.1rem;
+        }
+
+        .properties-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .property-item {
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .property-name {
+            font-weight: 500;
+            color: var(--dark-color);
+        }
+
+        .property-value {
+            color: var(--primary-color);
+        }
+
+        .crops-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .crop-item {
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 4px;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .crop-item:hover {
+            transform: translateY(-5px);
+        }
+
+        .crop-icon {
+            font-size: 2rem;
+            margin: 0.5rem 0;
+        }
+
+        .actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .properties-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .actions {
+                flex-direction: column;
+            }
+
+            .actions .btn {
+                width: 100%;
+                text-align: center;
+            }
+        }
+    </style>
+</body>
+</html>
