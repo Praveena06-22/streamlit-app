@@ -1,7 +1,7 @@
 import os
 
 class Config:
-    # Flask configuration
+    # General configuration
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'your-secret-key-here'
     
     # Upload configuration
@@ -76,19 +76,7 @@ class Config:
         'temperature': (-20, 50),   # Temperature (°C)
         'rainfall': (0, 5000)       # Annual rainfall (mm)
     }
-    
-    @staticmethod
-    def init_app(app):
-        """Initialize application configuration"""
-        # Create required directories
-        os.makedirs(Config.UPLOAD_FOLDER, exist_ok=True)
-        os.makedirs(Config.MODELS_DIR, exist_ok=True)
-        os.makedirs(Config.DATA_DIR, exist_ok=True)
-        
-        # Set Flask configuration
-        app.config['UPLOAD_FOLDER'] = Config.UPLOAD_FOLDER
-        app.config['MAX_CONTENT_LENGTH'] = Config.MAX_CONTENT_LENGTH
-        
+
     @staticmethod
     def allowed_file(filename):
         """Check if a filename has an allowed extension"""
@@ -101,7 +89,12 @@ class Config:
         for param, value in parameters.items():
             if param in Config.PARAMETER_RANGES:
                 min_val, max_val = Config.PARAMETER_RANGES[param]
-                if not min_val <= float(value) <= max_val:
+                try:
+                    value = float(value)
+                except ValueError:
+                    raise ValueError(f"Invalid value for {param}: {value} (must be a number)")
+                    
+                if not min_val <= value <= max_val:
                     raise ValueError(
                         f"{param} value {value} is outside valid range ({min_val}, {max_val})"
                     )
