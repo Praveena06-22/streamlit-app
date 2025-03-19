@@ -1,15 +1,12 @@
 import os
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+import streamlit as st
 from werkzeug.utils import secure_filename
 from soil_classifier import SoilClassifier
 from config import Config
 from train_models import predict_crop
 
-app = Flask(__name__)
-app.secret_key = Config.SECRET_KEY
-
 # Initialize configuration
-Config.init_app(app)
+Config.init_app(None)
 
 # Initialize soil classifier
 soil_classifier = SoilClassifier()
@@ -20,126 +17,122 @@ USERS = {
     'test_user': 'test_password'
 }
 
-@app.route('/')
-def index():
-    return redirect(url_for('login'))
+# Session state
+if 'logged_in' not in st.session_state:
+    st.session_state['logged_in'] = False
 
-@app.route('/login', methods=['GET', 'POST'])
+# Streamlit login function
 def login():
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        
+    if st.session_state['logged_in']:
+        st.success('You are already logged in!')
+        dashboard()
+        return
+    
+    st.title('Login')
+    username = st.text_input('Username')
+    password = st.text_input('Password', type='password')
+    
+    if st.button('Submit'):
         if username in USERS and USERS[username] == password:
-            session['logged_in'] = True
-            flash('Login successful!', 'success')
-            return redirect(url_for('dashboard'))
+            st.session_state['logged_in'] = True
+            st.success('Login successful!')
+            dashboard()
         else:
-            flash('Invalid credentials!', 'error')
-    
-    return render_template('login.html')
+            st.error('Invalid credentials!')
 
-@app.route('/logout')
-def logout():
-    session.pop('logged_in', None)
-    flash('You have been logged out.', 'success')
-    return redirect(url_for('login'))
-
-@app.route('/dashboard')
+# Dashboard
 def dashboard():
-    if not session.get('logged_in'):
-        flash('Please log in first.', 'error')
-        return redirect(url_for('login'))
-    return render_template('dashboard.html')
+    if not st.session_state['logged_in']:
+        st.error('Please log in first.')
+        login()
+        return
 
-@app.route('/soil-analysis', methods=['GET', 'POST'])
-def soil_analysis():
-    if not session.get('logged_in'):
-        flash('Please log in first.', 'error')
-        return redirect(url_for('login'))
-        
-    if request.method == 'POST':
-        if 'soil_image' not in request.files:
-            flash('No file selected', 'error')
-            return redirect(request.url)
-            
-        file = request.files['soil_image']
-        if file.filename == '':
-            flash('No file selected', 'error')
-            return redirect(request.url)
-            
-        if file and Config.allowed_file(file.filename):
-            try:
-                filename = secure_filename(file.filename)
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                file.save(filepath)
-                
-                # Analyze soil
-                result = soil_classifier.predict(filepath)
-                
-                # Get soil type characteristics from config
-                soil_type_key = result['soil_type'].lower().replace(' ', '_')
-                soil_info = Config.SOIL_TYPES.get(soil_type_key, {
-                    'properties': {},
-                    'suitable_crops': []
-                })
-                
-                return render_template('soil_result.html',
-                    image_filename=filename,
-                    soil_type=result['soil_type'],
-                    confidence=result['confidence'],
-                    soil_properties=soil_info['properties'],
-                    suitable_crops=soil_info['suitable_crops']
-                )
-            except Exception as e:
-                flash(f'Error analyzing soil: {str(e)}', 'error')
-                return redirect(request.url)
-        else:
-            flash('Invalid file type. Please upload a PNG or JPG image.', 'error')
-            return redirect(request.url)
-                
-    return render_template('soil_analysis.html')
-
-@app.route('/crop-recommendation', methods=['GET', 'POST'])
-def crop_recommendation():
-    if not session.get('logged_in'):
-        flash('Please log in first.', 'error')
-        return redirect(url_for('login'))
+    st.title('Dashboard')
+    st.markdown('Welcome to the Soil and Crop Recommendation App.')
     
-    if request.method == 'POST':
+    menu = ['Soil Analysis', 'Crop Recommendation', 'Logout']
+    choice = st.sidebar.selectbox('Select an option:', menu)
+
+    if choice == 'Soil Analysis':
+        soil_analysis()
+    elif choice == 'Crop Recommendation':
+        crop_recommendation()
+    elif choice == 'Logout':
+        st.session_state['logged_in'] = False
+        st.success('You have logged out successfully!')
+        login()
+
+# Soil Analysis Function
+def soil_analysis():
+    if not st.session_state['logged_in']:
+        st.error('Please log in first.')
+        login()
+        return
+
+    st.title('Soil Analysis')
+    
+    uploaded_file = st.file_uploader("Choose a soil image...", type=["png", "jpg", "jpeg"])
+    if uploaded_file is not None:
+        filename = secure_filename(uploaded_file.name)
+        filepath = os.path.join("/tmp", filename)
+        with open(filepath, 'wb') as f:
+            f.write(uploaded_file.getbuffer())
+
+        # Analyze soil
         try:
-            # Get form data and convert to the format expected by predict_crop
-            features = {
-                'N': float(request.form.get('N', request.form.get('nitrogen', 0))),
-                'P': float(request.form.get('P', request.form.get('phosphorus', 0))),
-                'K': float(request.form.get('K', request.form.get('potassium', 0))),
-                'pH': float(request.form.get('pH', request.form.get('ph', 0))),
-                'temperature': float(request.form['temperature']),
-                'rainfall': float(request.form['rainfall'])
-            }
+            result = soil_classifier.predict(filepath)
+            soil_type_key = result['soil_type'].lower().replace(' ', '_')
+            soil_info = Config.SOIL_TYPES.get(soil_type_key, {'properties': {}, 'suitable_crops': []})
             
+            st.image(filepath, caption="Uploaded Image", use_column_width=True)
+            st.write(f"Soil Type: {result['soil_type']}")
+            st.write(f"Confidence: {result['confidence']}")
+            st.write(f"Properties: {soil_info['properties']}")
+            st.write(f"Recommended Crops: {soil_info['suitable_crops']}")
+        except Exception as e:
+            st.error(f'Error analyzing soil: {str(e)}')
+
+# Crop Recommendation Function
+def crop_recommendation():
+    if not st.session_state['logged_in']:
+        st.error('Please log in first.')
+        login()
+        return
+
+    st.title('Crop Recommendation')
+
+    nitrogen = st.number_input('Nitrogen (N)', min_value=0.0)
+    phosphorus = st.number_input('Phosphorus (P)', min_value=0.0)
+    potassium = st.number_input('Potassium (K)', min_value=0.0)
+    ph = st.number_input('pH Level', min_value=0.0)
+    temperature = st.number_input('Temperature (°C)', min_value=0.0)
+    rainfall = st.number_input('Rainfall (mm)', min_value=0.0)
+
+    if st.button('Recommend Crops'):
+        try:
+            features = {
+                'N': nitrogen,
+                'P': phosphorus,
+                'K': potassium,
+                'pH': ph,
+                'temperature': temperature,
+                'rainfall': rainfall
+            }
+
             # Validate parameters
             Config.validate_parameters(features)
-            
+
             # Get crop recommendations
             recommended_crops = predict_crop(features, Config.N_RECOMMENDATIONS)
-            
-            return render_template('recommendation_result.html',
-                                nitrogen=features['N'],
-                                phosphorus=features['P'],
-                                potassium=features['K'],
-                                ph=features['pH'],
-                                temperature=features['temperature'],
-                                rainfall=features['rainfall'],
-                                recommended_crops=recommended_crops)
-        except ValueError as e:
-            flash(f'Invalid input: {str(e)}', 'error')
-            return redirect(url_for('crop_recommendation'))
-        except Exception as e:
-            flash(f'Error processing request: {str(e)}', 'error')
-            return redirect(url_for('crop_recommendation'))
-    
-    return render_template('crop_recommendation.html')
 
-if __name__ == '__main__':
-    app.run(debug=True, port=3004, host='0.0.0.0')
+            st.write(f"Recommended Crops: {recommended_crops}")
+        except ValueError as e:
+            st.error(f'Invalid input: {str(e)}')
+        except Exception as e:
+            st.error(f'Error processing request: {str(e)}')
+
+# Main Function to Run the App
+if not st.session_state['logged_in']:
+    login()
+else:
+    dashboard()
