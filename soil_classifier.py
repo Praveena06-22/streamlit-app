@@ -5,6 +5,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
 import joblib
+from skimage.feature import greycomatrix, greycoprops
 
 class SoilClassifier:
     def __init__(self):
@@ -12,6 +13,16 @@ class SoilClassifier:
         self.label_encoder = None
         self.image_size = (200, 200)  # Standard size for all images
         
+    def _load_image(self, image_path):
+        """Load and preprocess image"""
+        img = cv2.imread(image_path)
+        if img is None:
+            raise ValueError(f"Could not load image from {image_path}")
+        
+        img = cv2.resize(img, self.image_size)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        return img
+    
     def _load_images(self, dataset_path):
         """Load images and labels from the dataset directory"""
         images = []
@@ -24,17 +35,10 @@ class SoilClassifier:
                     if image_file.lower().endswith(('.png', '.jpg', '.jpeg')):
                         image_path = os.path.join(soil_path, image_file)
                         try:
-                            # Read and resize image
-                            img = cv2.imread(image_path)
-                            if img is not None:
-                                img = cv2.resize(img, self.image_size)
-                                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                                
-                                # Extract features
-                                features = self._extract_features(img)
-                                
-                                images.append(features)
-                                labels.append(soil_type)
+                            img = self._load_image(image_path)
+                            features = self._extract_features(img)
+                            images.append(features)
+                            labels.append(soil_type)
                         except Exception as e:
                             print(f"Error loading image {image_path}: {str(e)}")
         
@@ -67,24 +71,13 @@ class SoilClassifier:
     def _calculate_texture_features(self, gray_image):
         """Calculate texture features using GLCM"""
         # Calculate GLCM
-        glcm = np.zeros((256, 256))
-        h, w = gray_image.shape
-        
-        for i in range(h-1):
-            for j in range(w-1):
-                pixel = gray_image[i, j]
-                neighbor = gray_image[i, j+1]
-                glcm[pixel, neighbor] += 1
-        
-        # Normalize GLCM
-        glcm = glcm / glcm.sum()
+        glcm = greycomatrix(gray_image, [1], [0], symmetric=True, normed=True)
         
         # Calculate texture properties
-        contrast = np.sum(np.square(np.arange(256)[:, None] - np.arange(256)[None, :]) * glcm)
-        correlation = np.sum((np.arange(256)[:, None] - np.mean(glcm)) * 
-                           (np.arange(256)[None, :] - np.mean(glcm)) * glcm) / (np.std(glcm) ** 2)
-        energy = np.sum(np.square(glcm))
-        homogeneity = np.sum(glcm / (1 + np.square(np.arange(256)[:, None] - np.arange(256)[None, :])))
+        contrast = greycoprops(glcm, 'contrast')[0, 0]
+        correlation = greycoprops(glcm, 'correlation')[0, 0]
+        energy = greycoprops(glcm, 'energy')[0, 0]
+        homogeneity = greycoprops(glcm, 'homogeneity')[0, 0]
         
         return np.array([contrast, correlation, energy, homogeneity])
     
@@ -122,12 +115,7 @@ class SoilClassifier:
                 self.label_encoder = joblib.load('models/soil_type_encoder.joblib')
             
             # Load and preprocess image
-            img = cv2.imread(image_path)
-            if img is None:
-                raise ValueError("Could not load image")
-                
-            img = cv2.resize(img, self.image_size)
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img = self._load_image(image_path)
             
             # Extract features
             features = self._extract_features(img)
